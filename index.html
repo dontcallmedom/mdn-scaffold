@@ -1,0 +1,19 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset=utf-8>
+    <title>MDN Page Creator</title>
+    <script src="https://w3c.github.io/webrtc-stats/webidl2.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/ejs@3.1.8/ejs.min.js"></script>
+    <script type=module src=generate.js></script>
+  </head>
+  <body>
+    <form>
+      <label>Interface name: <select id=interface><option value="">Pick one…</option></select></label><label>Interface member: <select id=member><option value="">Interface page</option></select></label>
+      <label>API Group: <select id=api><option value="">Pick one…</option></select></label>
+      <label>Experimental? <input id=experimental type=checkbox></label>
+      <button id=generate type=submit>Generate</button>
+    </form>
+    <pre id=output><code id=output></code></pre>
+  </body>
+</html>
