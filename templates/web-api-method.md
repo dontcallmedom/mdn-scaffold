@@ -1,6 +1,6 @@
 ---
 title: <%= iface %>.<%= membername %>()
-slug: Web/API/<%= iface %>/<%= membername %> <%# capitalization %>
+slug: Web/API/<%= iface %>/<%= membername %>
 page-type: web-api-<% if (static) { %>static<% } else { %>instance<% } %>-method
 <% if (experimental) { %>
 tags:

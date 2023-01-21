@@ -56,8 +56,6 @@ function getMembers(idls, predicates = [x => true]) {
 
   const members = idls.filter(i => i.members).map(i => i.members.filter(m => predicates.every(f => f(m)))).flat();
   // TODO: remove dups due to overloaded operations?
-  // TODO: filter name-less operations
-
   if (members.length === 0) return null;
   return members;
 }
@@ -147,14 +145,16 @@ document.getElementById("interface").addEventListener("change", async function(e
     // reset
     memberSelector.innerHTML = `<option value="">Interface page</option>`;
     (apiSelector.querySelector("option[selected]") || {}).selected = false;
-    const parsedIdl = getParsedIdl(await getIdl(ifaceName));
+    const idlData = await getIdl(ifaceName);
+    // TODO: bail out if this is not a documentable item
+    const parsedIdl = getParsedIdl(idlData);
     (getMembers(parsedIdl, [isAttribute, (m => m.name)]) || []).concat(
       getMembers(parsedIdl, isConstructor) || [],
       getMembers(parsedIdl, [isOperation, (m => m.name)]) || []
     ).forEach(m => {
       const option = document.createElement("option");
-      option.value = m.name ? m.name : m.type;
-      option.textContent = m.type === "constructor" ? m.type : (m.type === "operation" ? m.name + "()" : m.name);
+      option.value = (m.name ? m.name : m.type) + (m.special === "static" ? "|static" : "");
+      option.textContent = m.type === "constructor" ? m.type : (m.type === "operation" ? m.name + "()" : m.name) + (m.special === "static" ? " - static" : "");
       memberSelector.append(option);
     });
     const groupName =  Object.keys(groupData[0]).find(api => groupData[0][api].interfaces?.includes(ifaceName));
@@ -174,10 +174,11 @@ document.getElementById("generate").addEventListener("click", async function(e) 
 	{experimental: document.getElementById("experimental").checked}
       );
     } else {
+      const [membername, staticmember] = document.getElementById("member").value.split("|");
       document.getElementById("output").textContent = await generateSubInterfacePage(
 	document.getElementById("interface").value,
-	document.getElementById("member").value,
-	false, // TODO surface whether the method is static or not
+	membername,
+	!!staticmember,
 	document.getElementById("api").value,
 	{experimental: document.getElementById("experimental").checked}
       );
