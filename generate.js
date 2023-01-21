@@ -116,6 +116,10 @@ async function generateSubInterfacePage(iface, membername, staticMember, groupda
     static: staticMember,
     returnvalue: null
   };
+  if (membername === "constructor") {
+    memberData.constructor = true;
+    memberData.membername = iface;
+  }
   const idlData = await getIdl(iface);
   const parsedIdl = getParsedIdl(idlData);
   const matchingMembers = getMembers(parsedIdl, [staticMember? isStatic : not(isStatic), hasName(membername)]);
