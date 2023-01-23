@@ -53,6 +53,7 @@ const isConstructor = m => m.type === "constructor";
 const isOperation = m => m.type === "operation";
 const hasName = name => m => m.name === name;
 const hasSecureContextExtAttr = ea => ea.name === "SecureContext";
+const byName = (a, b) => a.name.localeCompare(b.name, "en-US");
 
 function formatIdlType(idlType) {
   // TODO: deal with complexity of idlType
@@ -61,8 +62,12 @@ function formatIdlType(idlType) {
 
 function getMembers(idls, predicates = [x => true]) {
   predicates = Array.isArray(predicates) ? predicates : [predicates];
-  const members = idls.filter(i => i.members).map(i => i.members.filter(m => predicates.every(f => f(m)))).flat();
-  // TODO: remove dups due to overloaded operations?
+  const members = idls.filter(i => i.members).map(i => i.members.filter((m, i, arr) => predicates.every(
+    f => f(m) &&
+      // remove dups due to overloaded operations
+    arr.findIndex(mm => m.type === "constructor" ? mm.type === m.type : mm.name === m.name) === i)
+								       ))
+	.flat();
   if (members.length === 0) return null;
   return members;
 }
@@ -83,10 +88,10 @@ async function generateInterfacePage(iface, groupdataname, options = {experiment
   ifaceData.securecontext = mainIdl.extAttrs.find(hasSecureContextExtAttr);
   ifaceData._constructor = mainIdl.members.find(isConstructor);
 
-  ifaceData.staticproperties = getMembers(parsedIdl, [isAttribute, isStatic]);
-  ifaceData.properties = getMembers(parsedIdl, [isAttribute, not(isStatic), not(isEventHandler)]);
-  ifaceData.staticmethods = getMembers(parsedIdl, [isOperation, isStatic]);
-  ifaceData.methods = getMembers(parsedIdl, [isOperation, not(isStatic)]);
+  ifaceData.staticproperties = getMembers(parsedIdl, [isAttribute, isStatic])?.sort(byName);
+  ifaceData.properties = getMembers(parsedIdl, [isAttribute, not(isStatic), not(isEventHandler)])?.sort(byName);
+  ifaceData.staticmethods = getMembers(parsedIdl, [isOperation, isStatic])?.sort(byName);
+  ifaceData.methods = getMembers(parsedIdl, [isOperation, not(isStatic)])?.sort(byName);
 
   ifaceData.events = getMembers(parsedIdl, isEventHandler)?.map(m => m.name.slice(2))?.sort();
 
@@ -185,7 +190,7 @@ async function generateEventInterfacePage(iface, eventname, groupdataname, optio
       const eventIdlData = await getIdl(event.interface);
       const parsedEventIdl = getParsedIdl(eventIdlData);
       eventData.parenteventinterface = parsedEventIdl[0].inheritance?.name;
-      const eventproperties = getMembers(parsedEventIdl, isAttribute);
+      const eventproperties = getMembers(parsedEventIdl, isAttribute)?.sort(byName);
       if (eventproperties) {
 	eventData.eventproperties = eventproperties.map(m => { return {name: m.name, type: formatIdlType(m.idlType)}; });
       }
@@ -275,13 +280,13 @@ document.getElementById("interface").addEventListener("change", async function(e
       document.getElementById("output").textContent = "Not an interface";
     }
     const attributeOptions = optgroup("Properties",
-				      (getMembers(parsedIdl, [isAttribute, (m => m.name)]) || []).map(m => { return { value: `attribute|${m.name}`, label: m.name};}));
+				      (getMembers(parsedIdl, [isAttribute, (m => m.name)]) || []).map(m => { return { value: `attribute|${m.name}`, label: m.name};}).sort());
     const constructorOptions = optgroup("Constructor",
-				      (getMembers(parsedIdl, isConstructor) || []).map(m => { return { value: `constructor|constructor`, label: `${ifaceName}() (constructor)`};}));
+					(getMembers(parsedIdl, isConstructor) || []).map(m => { return { value: `constructor|constructor`, label: `${ifaceName}() (constructor)`};}).sort());
     const methodOptions = optgroup("Methods",
-				   (getMembers(parsedIdl, [isOperation, (m => m.name)]) || []).map(m => { return { value: `operation|${m.name}${m.special === "static" ? "|static" : ""}`, label: `${m.name}()${m.special === "static" ? " - static" : ""}`};}));
+				   (getMembers(parsedIdl, [isOperation, (m => m.name)]) || []).map(m => { return { value: `operation|${m.name}${m.special === "static" ? "|static" : ""}`, label: `${m.name}()${m.special === "static" ? " - static" : ""}`};}).sort());
     const eventOptions = optgroup("Events",
-				  (getMembers(parsedIdl, isEventHandler) || []).map(m => { return { value: `event|${m.name.slice(2)}`, label: `${m.name.slice(2)} event`};}));
+				  (getMembers(parsedIdl, isEventHandler) || []).map(m => { return { value: `event|${m.name.slice(2)}`, label: `${m.name.slice(2)} event`};}).sort());
 
     memberSelector.append(attributeOptions, constructorOptions, methodOptions, eventOptions);
 
