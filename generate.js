@@ -2,7 +2,13 @@
 
 const parse = WebIDL2.parse;
 
-const [groupData, interfaces] = await Promise.all(["https://raw.githubusercontent.com/mdn/content/main/files/jsondata/GroupData.json", "https://raw.githubusercontent.com/w3c/webref/curated/ed/idlnames.json"].map(url => fetch(url).then(r => r.json() )));
+const [groupData, interfaces, events] = await Promise.all(
+  ["https://raw.githubusercontent.com/mdn/content/main/files/jsondata/GroupData.json",
+   "https://raw.githubusercontent.com/w3c/webref/curated/ed/idlnames.json",
+   "https://w3c.github.io/webref/ed/events.json"
+  ].map(url => fetch(url).then(r => r.json() )));
+
+
 const groupDataSelector = document.getElementById("api");
 Object.keys(groupData[0]).forEach(name => {
   const option = document.createElement("option");
@@ -107,6 +113,48 @@ const idlType2PageType = {
   "attribute": "property"
 };
 
+async function generateEventInterfacePage(iface, eventname, groupdataname, options = {experimental: false}) {
+  const eventData = {
+    iface,
+    eventname,
+    experimental: options.experimental,
+    groupdataname
+  };
+  const idlData = await getIdl(iface);
+  const parsedIdl = getParsedIdl(idlData);
+  const matchingMembers = getMembers(parsedIdl, [isEventHandler, hasName("on" + eventname)]);
+  if (!matchingMembers) {
+    throw new Error(`Unknown event ${eventname} for ${iface}`);
+  }
+  const member = matchingMembers[0];
+
+  eventData.securecontext = parsedIdl[0].extAttrs.find(hasSecureContextExtAttr) || member.extAttrs.find(hasSecureContextExtAttr);
+
+  eventData.eventinterface = "TBD";
+  eventData.parenteventinterface = "TBD";
+  eventData.eventproperties = [];
+
+  const event = events.find(e => e.type === eventname && e.targets.find(i => i.target === iface));
+
+  if (event) {
+    eventData.eventinterface = event.interface;
+    if (event.interface === "Event") {
+      eventData.parenteventinterface = null;
+    } else {
+      const eventIdlData = await getIdl(event.interface);
+      const parsedEventIdl = getParsedIdl(eventIdlData);
+      eventData.parenteventinterface = parsedEventIdl[0].inheritance?.name;
+      const eventproperties = getMembers(parsedEventIdl, isAttribute);
+      if (eventproperties) {
+	eventData.eventproperties = eventproperties.map(m => { return {name: m.name, type: formatIdlType(m.idlType)}; });
+      }
+    }
+  }
+  const tmpl = await fetch(`templates/web-api-event.md`).then(r => r.text());
+  return ejs.render(tmpl, eventData);
+
+}
+
 async function generateSubInterfacePage(iface, membername, staticMember, groupdataname, options = {experimental: false}) {
   const memberData = {
     iface,
@@ -138,7 +186,18 @@ async function generateSubInterfacePage(iface, membername, staticMember, groupda
   }
   const tmpl = await fetch(`templates/web-api-${idlType2PageType[member.type]}.md`).then(r => r.text());
   return ejs.render(tmpl, memberData);
+}
 
+function optgroup(label, items) {
+  const el = document.createElement("optgroup");
+  el.label = label;
+  for (let item of items) {
+    const opt = document.createElement("option");
+    opt.value = item.value;
+    opt.textContent = item.label;
+    el.append(opt);
+  }
+  return el;
 }
 
 document.getElementById("interface").addEventListener("change", async function(e) {
@@ -152,15 +211,17 @@ document.getElementById("interface").addEventListener("change", async function(e
     const idlData = await getIdl(ifaceName);
     // TODO: bail out if this is not a documentable item
     const parsedIdl = getParsedIdl(idlData);
-    (getMembers(parsedIdl, [isAttribute, (m => m.name)]) || []).concat(
-      getMembers(parsedIdl, isConstructor) || [],
-      getMembers(parsedIdl, [isOperation, (m => m.name)]) || []
-    ).forEach(m => {
-      const option = document.createElement("option");
-      option.value = (m.name ? m.name : m.type) + (m.special === "static" ? "|static" : "");
-      option.textContent = m.type === "constructor" ? m.type : (m.type === "operation" ? m.name + "()" : m.name) + (m.special === "static" ? " - static" : "");
-      memberSelector.append(option);
-    });
+    const attributeOptions = optgroup("Properties",
+				      (getMembers(parsedIdl, [isAttribute, (m => m.name)]) || []).map(m => { return { value: `attribute|${m.name}`, label: m.name};}));
+    const constructorOptions = optgroup("Constructor",
+				      (getMembers(parsedIdl, isConstructor) || []).map(m => { return { value: `constructor|ifaceName`, label: `${ifaceName}() (constructor)`};}));
+    const methodOptions = optgroup("Methods",
+				   (getMembers(parsedIdl, [isOperation, (m => m.name)]) || []).map(m => { return { value: `operation|${m.name}${m.special === "static" ? "|static" : ""}`, label: `${m.name}()${m.special === "static" ? " - static" : ""}`};}));
+    const eventOptions = optgroup("Events",
+				  (getMembers(parsedIdl, isEventHandler) || []).map(m => { return { value: `event|${m.name.slice(2)}`, label: `${m.name.slice(2)} event`};}));
+
+    memberSelector.append(attributeOptions, constructorOptions, methodOptions, eventOptions);
+
     const groupName =  Object.keys(groupData[0]).find(api => groupData[0][api].interfaces?.includes(ifaceName));
     if (groupName) {
       [...apiSelector.querySelectorAll("option")].find(o => o.textContent === groupName).selected = true;
@@ -178,14 +239,25 @@ document.getElementById("generate").addEventListener("click", async function(e) 
 	{experimental: document.getElementById("experimental").checked}
       );
     } else {
-      const [membername, staticmember] = document.getElementById("member").value.split("|");
-      document.getElementById("output").textContent = await generateSubInterfacePage(
-	document.getElementById("interface").value,
-	membername,
-	!!staticmember,
-	document.getElementById("api").value,
-	{experimental: document.getElementById("experimental").checked}
-      );
+      const [membertype, membername, staticmember] = document.getElementById("member").value.split("|");
+      let ret = "";
+      if (membertype === "event") {
+	ret = await generateEventInterfacePage(
+	  document.getElementById("interface").value,
+	  membername,
+	  document.getElementById("api").value,
+	  {experimental: document.getElementById("experimental").checked}
+	);
+      } else {
+	ret = await generateSubInterfacePage(
+	  document.getElementById("interface").value,
+	  membername,
+	  !!staticmember,
+	  document.getElementById("api").value,
+	  {experimental: document.getElementById("experimental").checked}
+	);
+      }
+      document.getElementById("output").textContent = ret;
     }
   } catch (e) {
     document.getElementById("output").textContent = e.message;
