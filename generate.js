@@ -250,6 +250,13 @@ function optgroup(label, items) {
   return el;
 }
 
+function saveToQS(iface, memberdef) {
+  const url = new URL(window.location);
+  url.searchParams.set("interface", iface);
+  url.searchParams.set("member", memberdef);
+  window.history.pushState({}, '', url);
+}
+
 memberSelector.addEventListener("change", async function(e) {
   if (e.target.value) {
     document.getElementById("sub").disabled = true;
@@ -311,6 +318,7 @@ let generatedFiles;
 
 document.getElementById("generate").addEventListener("click", async function(e) {
   e.preventDefault();
+  saveToQS(interfaceSelector.value, memberSelector.value);
   document.getElementById("download").disabled = true;
   try {
     if (!memberSelector.value) {
