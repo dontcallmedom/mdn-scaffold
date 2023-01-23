@@ -1,4 +1,6 @@
-//import * as zip from "https://deno.land/x/zipjs/index.js";
+const {downloadZip} = await import("https://cdn.jsdelivr.net/npm/client-zip/index.js");
+
+const fileSep = filename => `--------------------------${filename}\n`;
 
 const parse = WebIDL2.parse;
 
@@ -68,7 +70,7 @@ function getMembers(idls, predicates = [x => true]) {
 
 // Web API
 // can experimental be calculated based on BCD?
-async function generateInterfacePage(iface, groupdataname, options = {experimental: false}) {
+async function generateInterfacePage(iface, groupdataname, options = {experimental: false, recursive: false}) {
   const ifaceData = {
     iface,
     experimental: options.experimental,
@@ -87,7 +89,7 @@ async function generateInterfacePage(iface, groupdataname, options = {experiment
   ifaceData.staticmethods = getMembers(parsedIdl, [isOperation, isStatic]);
   ifaceData.methods = getMembers(parsedIdl, [isOperation, not(isStatic)]);
 
-  ifaceData.events = getMembers(parsedIdl, isEventHandler)?.map(m => m.name.slice(2)).sort();
+  ifaceData.events = getMembers(parsedIdl, isEventHandler)?.map(m => m.name.slice(2))?.sort();
 
   if (!mainIdl.inheritance) {
     ifaceData.parent = null;
@@ -105,7 +107,46 @@ async function generateInterfacePage(iface, groupdataname, options = {experiment
     ifaceData.parentmethods = getMembers(parentIdl, [isOperation, not(isStatic)]);
   }
   const tmpl = await fetch("templates/web-api-interface.md").then(r => r.text());
-  return ejs.render(tmpl, ifaceData);
+  let ret = [
+    {
+      filename: "index.md",
+      content: ejs.render(tmpl, ifaceData)
+    }
+  ];
+  if (options.recursive) {
+    const path = p => `${p.toLowerCase()}/index.md`;
+    async function generateSubPages(entries, staticMember)  {
+      return Promise.all((entries || []).map(async p => {
+	let subpage = {filename: path(p.name)};
+	try {
+	  subpage.content = await generateSubInterfacePage(iface, p.name, staticMember, groupdataname, options);
+	} catch (e) {
+	  subpage.content += `Error: ${e}`;
+	}
+	return subpage;
+      }
+					    ));
+    }
+
+    if (ifaceData.constructor) {
+      ret.push({filename: path(iface), content: await generateSubInterfacePage(iface, "constructor", false, groupdataname, options)});
+    }
+    ret = ret.concat(await generateSubPages(ifaceData.staticproperties, true));
+    ret = ret.concat(await generateSubPages(ifaceData.properties, false));
+    ret = ret.concat(await generateSubPages(ifaceData.staticmethods, true));
+    ret = ret.concat(await generateSubPages(ifaceData.methods, false));
+    ret = ret.concat(await Promise.all((ifaceData.events || []).map(async name => {
+      let subpage = {filename: path(name + "_event")};
+      try {
+	subpage.content = await generateEventInterfacePage(iface, name, groupdataname, options);
+      } catch (e) {
+	subpage.content = `Error: ${e}`;
+      }
+      return subpage;
+    }
+								   )));
+  }
+  return ret;
 }
 
 const idlType2PageType = {
@@ -172,7 +213,6 @@ async function generateSubInterfacePage(iface, membername, staticMember, groupda
   const idlData = await getIdl(iface);
   const parsedIdl = getParsedIdl(idlData);
   const matchingMembers = memberData.constructor ? getMembers(parsedIdl, isConstructor) : getMembers(parsedIdl, [staticMember? isStatic : not(isStatic), hasName(membername)]);
-  console.log(idlData, parsedIdl, staticMember, membername);
   if (!matchingMembers) {
     throw new Error(`Unknown ${iface}.${membername}`);
   }
@@ -202,6 +242,17 @@ function optgroup(label, items) {
   return el;
 }
 
+document.getElementById("member").addEventListener("change", async function(e) {
+  if (e.target.value) {
+    document.getElementById("sub").disabled = true;
+    document.getElementById("sub").checked = false;
+    document.querySelector('[for="sub"]').classList.add("disabled");
+  } else {
+    document.getElementById("sub").disabled = false;
+    document.querySelector('[for="sub"]').classList.remove("disabled");
+  }
+});
+
 document.getElementById("interface").addEventListener("change", async function(e) {
   if (e.target.value) {
     const ifaceName = e.target.value;
@@ -209,10 +260,19 @@ document.getElementById("interface").addEventListener("change", async function(e
     const apiSelector = document.getElementById("api");
     // reset
     memberSelector.innerHTML = `<option value="">Interface page</option>`;
+    document.getElementById("sub").disabled = false;
+    document.querySelector('[for="sub"]').classList.remove("disabled");
+    document.getElementById("output").textContent = "";
+    document.getElementById("generate").disabled = false;
+
     (apiSelector.querySelector("option[selected]") || {}).selected = false;
     const idlData = await getIdl(ifaceName);
-    // TODO: bail out if this is not a documentable item
     const parsedIdl = getParsedIdl(idlData);
+    // bail out if this is not a documentable item
+    if (parsedIdl[0].type !== "interface") {
+      document.getElementById("generate").disabled = true;
+      document.getElementById("output").textContent = "Not an interface";
+    }
     const attributeOptions = optgroup("Properties",
 				      (getMembers(parsedIdl, [isAttribute, (m => m.name)]) || []).map(m => { return { value: `attribute|${m.name}`, label: m.name};}));
     const constructorOptions = optgroup("Constructor",
@@ -227,6 +287,8 @@ document.getElementById("interface").addEventListener("change", async function(e
     const groupName =  Object.keys(groupData[0]).find(api => groupData[0][api].interfaces?.includes(ifaceName));
     if (groupName) {
       [...apiSelector.querySelectorAll("option")].find(o => o.textContent === groupName).selected = true;
+    } else {
+      apiSelector.querySelector("option").selected = true;
     }
   }
 });
@@ -235,11 +297,11 @@ document.getElementById("generate").addEventListener("click", async function(e) 
   e.preventDefault();
   try {
     if (!document.getElementById("member").value) {
-      document.getElementById("output").textContent = await generateInterfacePage(
+      document.getElementById("output").textContent = (await generateInterfacePage(
 	document.getElementById("interface").value,
 	document.getElementById("api").value,
-	{experimental: document.getElementById("experimental").checked}
-      );
+	{experimental: document.getElementById("experimental").checked, recursive: document.getElementById("sub").checked}
+      )).map(page => fileSep(page.filename) + page.content).join("\n");
     } else {
       const [membertype, membername, staticmember] = document.getElementById("member").value.split("|");
       let ret = "";
