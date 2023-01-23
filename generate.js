@@ -62,6 +62,8 @@ const isString = s => typeof s === "string";
 
 const isIdlPrimitive = (type) => {
   switch(type) {
+  case "ArrayBuffer":
+    return '{{jsxref("ArrayBuffer")}}';
   case "boolean":
   case "object":
   case "undefined":
@@ -103,7 +105,7 @@ async function formatIdlType(idltype, indent = 0) {
   }
   if (idltype.generic) {
     switch(idltype.generic) {
-    case "Record":
+    case "record":
       return `a key-value pair ${await formatIdlType(idltype.idlType[0])},${await formatIdlType(idltype.idlType[1], indent + 1)}`;
     case "Promise":
       return `a promise of ${await formatIdlType(idltype.idlType[0], indent + 1)}`;
