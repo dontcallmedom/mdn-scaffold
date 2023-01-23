@@ -28,14 +28,14 @@ TOWRITE: Summary paragraph
 <% if (parameters) { %>
 <% for (let param of parameters) { %>
 - `<%= param.name %>` <% if (param.optional) { %>{{optional_inline}}<% } %>
-  - : {{domxref("<%= param.type %>)")}}<% } %>
+  - : <%- param.type %><% } %>
 <% } else { %>None<% }%>
 
 ### Return value
 <% if (_constructor) { %>
 An instance of the {{domxref("<%= iface %>")}} object.
 <% } else if (returnvalue) { %>
-{{domxref("<%= returnvalue %>")}}
+<%- returnvalue %>
 <% } else { %>None<% } %>
 
 ### Exceptions

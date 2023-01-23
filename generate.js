@@ -58,9 +58,85 @@ const hasName = name => m => m.name === name;
 const hasSecureContextExtAttr = ea => ea.name === "SecureContext";
 const byName = (a, b) => a.name.localeCompare(b.name, "en-US");
 
-function formatIdlType(idlType) {
-  // TODO: deal with complexity of idlType
-  return typeof idlType === "string" ? idlType : idlType.idlType;
+const isString = s => typeof s === "string";
+
+const isIdlPrimitive = (type) => {
+  switch(type) {
+  case "boolean":
+  case "object":
+  case "undefined":
+  case "any":
+    return type;
+  case "byte":
+  case "octet":
+  case "short":
+  case "unsigned short":
+  case "long":
+  case "unsigned long":
+  case "long long":
+  case "unsigned long long":
+    return "integer";
+  case "float":
+  case "unrestricted float":
+    return "float";
+  case "double":
+  case  "unrestricted double":
+    return "double-precision floating-point value";
+  case "bigint": // Unsure
+  case "DOMString":
+  case "ByteString":
+  case "USVString":
+    return "string";
+  default:
+    return false;
+  }
+}
+
+async function formatIdlType(idltype, indent = 0) {
+  const indentStr = Array(indent*3+3).join(" ");
+  if (idltype.union) {
+    return `one of ${(await Promise.all(idltype.idlType.map(async t => await formatIdlType(t, indent + 1)))).join(', ')}`;
+  }
+  // DELETE?
+  if (idltype.sequence || idltype.array) {
+    return `an array of ${await formatIdlType(idltype.idlType, indent + 1)}`;
+  }
+  if (idltype.generic) {
+    switch(idltype.generic) {
+    case "Record":
+      return `a key-value pair ${await formatIdlType(idltype.idlType[0])},${await formatIdlType(idltype.idlType[1], indent + 1)}`;
+    case "Promise":
+      return `a promise of ${await formatIdlType(idltype.idlType[0], indent + 1)}`;
+    case "FrozenArray":
+    case "sequence":
+    case "ObservableArray":
+      return `an array of ${await formatIdlType(idltype.idlType[0], indent + 1)}`;
+    default:
+      return `${idltype.generic} of type ${await formatIdlType(idltype.idlType, indent + 1)}`;
+    }
+  }
+  if (isIdlPrimitive(idltype.idlType)) {
+    return isIdlPrimitive(idltype.idlType);
+  } else {
+    try {
+      // TODO: load idlType and check type if it's an interface
+      const idlData = await getIdl(idltype.idlType);
+      if (idlData.type === "interface") {
+	return `{{DOMxRef("${idltype.idlType}")}}`;
+      }
+      const parsedIdl = getParsedIdl(idlData);
+      if (idlData.type === "dictionary") {
+	return `an object with the following keys:
+${indentStr}- ${(await Promise.all(getMembers(parsedIdl).map(async m => `\`${m.name}\`${!m.required ? " {{optional_inline}}" : ""}` + `\n${indentStr}  - : ` + await formatIdlType(m.idlType, indent + 1)))).join(`\n${indentStr}- `)}`;
+      } else if (idlData.type === "enum") {
+	return `one of the following string values:
+${indentStr}   - \`"${parsedIdl[0].values.map(v => v.value).join(`\`"\n${indentStr}   - \`"`)}"\``;
+      }
+    } catch (e) {
+      console.error(`Could not handle IDL for ${JSON.stringify(idltype)}`, e);
+      return  `{{DOMxRef("${idltype.idlType}")}}`;
+    }
+  }
 }
 
 function getMembers(idls, predicates = [x => true]) {
@@ -91,8 +167,8 @@ async function generateInterfacePage(iface, groupdataname, options = {experiment
   ifaceData.securecontext = mainIdl.extAttrs.find(hasSecureContextExtAttr);
   ifaceData._constructor = mainIdl.members.find(isConstructor);
 
-  ifaceData.staticproperties = getMembers(parsedIdl, [isAttribute, isStatic])?.sort(byName);
-  ifaceData.properties = getMembers(parsedIdl, [isAttribute, not(isStatic), not(isEventHandler)])?.sort(byName);
+  ifaceData.staticproperties = await Promise.all(getMembers(parsedIdl, [isAttribute, isStatic])?.sort(byName)?.map(async p => Object.assign(p, { idltype: await formatIdlType(p.idlType)})) || []);
+  ifaceData.properties = await Promise.all(getMembers(parsedIdl, [isAttribute, not(isStatic), not(isEventHandler)])?.sort(byName).map(async p => Object.assign(p, { idltype: await formatIdlType(p.idlType)})));
   ifaceData.staticmethods = getMembers(parsedIdl, [isOperation, isStatic])?.sort(byName);
   ifaceData.methods = getMembers(parsedIdl, [isOperation, not(isStatic)])?.sort(byName);
 
@@ -195,7 +271,7 @@ async function generateEventInterfacePage(iface, eventname, groupdataname, optio
       eventData.parenteventinterface = parsedEventIdl[0].inheritance?.name;
       const eventproperties = getMembers(parsedEventIdl, isAttribute)?.sort(byName);
       if (eventproperties) {
-	eventData.eventproperties = eventproperties.map(m => { return {name: m.name, type: formatIdlType(m.idlType)}; });
+	eventData.eventproperties = await Promise.all(eventproperties.map(async m => { return {name: m.name, type: await formatIdlType(m.idlType)}; }));
       }
     }
   }
@@ -228,11 +304,11 @@ async function generateSubInterfacePage(iface, membername, staticMember, groupda
   memberData.securecontext = parsedIdl[0].extAttrs.find(hasSecureContextExtAttr) || member.extAttrs.find(hasSecureContextExtAttr);
 
   if (isConstructor(member) || isOperation(member)) {
-    memberData.parameters = member.arguments.map(a => { return {name: a.name, type: formatIdlType(a.idlType), optional: a.optional} ; });
+    memberData.parameters = await Promise.all(member.arguments.map(async a => { return {name: a.name, type: await formatIdlType(a.idlType), optional: a.optional} ; }));
     memberData.parameters = memberData.parameters.length ? memberData.parameters : null;
   }
   if (isOperation(member)) {
-    memberData.returnvalue = member.idlType !== "undefined" ? formatIdlType(member.idlType) : null;
+    memberData.returnvalue = member.idlType !== "undefined" ? await formatIdlType(member.idlType) : null;
   }
   const tmpl = await fetch(`templates/web-api-${idlType2PageType[member.type]}.md`).then(r => r.text());
   return ejs.render(tmpl, memberData);
@@ -269,7 +345,6 @@ memberSelector.addEventListener("change", async function(e) {
 });
 
 interfaceSelector.addEventListener("change", async function(e) {
-  console.log(e);
   if (e.target.value) {
     const ifaceName = e.target.value;
 

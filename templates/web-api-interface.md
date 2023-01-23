@@ -33,7 +33,7 @@ TOWRITE: Summary paragraph
 Also inherits properties from its parent interface, {{DOMxRef("<%= parent %>")}}.
 <% } %><% for (let property of staticproperties || []) { %>
 - {{DOMxRef("<%= iface %>.<%= property.name %>")}} <% if (property.readonly) { %>{{ReadOnlyInline}}<% } %>
-  - TOWRITE: Include a brief description of the property and what it does here.
+  - <%- property.idltype %>  TOWRITE: Include a brief description of the property and what it does here.
 <% } %><% } %>
 <% if (properties || parentproperties) {%>
 ## Instance properties
@@ -41,7 +41,7 @@ Also inherits properties from its parent interface, {{DOMxRef("<%= parent %>")}}
 _Also inherits properties from its parent interface, {{DOMxRef("<%= parent%>")}}._
 <% } %><% for (let property of properties || []) { %>
 - {{DOMxRef("<%= iface %>.<%= property.name %>")}} <% if (property.readonly) { %>{{ReadOnlyInline}}<% } %>
-  - TOWRITE: Include a brief description of the property and what it does here.
+  - <%- property.idltype %> TOWRITE: Include a brief description of the property and what it does here.
 <% } %><% } %>
 <% if (staticmethods || parentstaticmethods) {%>
 ## Static methods

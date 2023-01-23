@@ -45,7 +45,7 @@ A {{domxref("<%= eventinterface %>")}}. Inherits from {{domxref("<%= parentevent
 In addition to the properties listed below, properties from the parent interface, {{domxref("Event")}}, are available.
 <% for (let prop of eventproperties) { %>
 - {{domxref("<%= eventinterface%>.<%=prop.name%>", "<%= prop.name%>")}} {{ReadOnlyInline}}
-  - : The {{domxref("<%= prop.type %>")}} to which the event refers.
+  - : The <%- prop.type %> to which the event refers.
 <% } %><% } %>
 
 ## Description
