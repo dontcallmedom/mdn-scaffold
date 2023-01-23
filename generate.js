@@ -10,6 +10,8 @@ const [groupData, interfaces, events] = await Promise.all(
    "https://w3c.github.io/webref/ed/events.json"
   ].map(url => fetch(url).then(r => r.json() )));
 
+const params = new URLSearchParams(window.location.search);
+
 
 const groupDataSelector = document.getElementById("api");
 Object.keys(groupData[0]).forEach(name => {
@@ -23,6 +25,7 @@ Object.keys(interfaces).forEach(name => {
   option.textContent = name;
   interfaceSelector.append(option);
 });
+const memberSelector = document.getElementById("member");
 
 const _idlCache = {};
 
@@ -247,7 +250,7 @@ function optgroup(label, items) {
   return el;
 }
 
-document.getElementById("member").addEventListener("change", async function(e) {
+memberSelector.addEventListener("change", async function(e) {
   if (e.target.value) {
     document.getElementById("sub").disabled = true;
     document.getElementById("sub").checked = false;
@@ -258,11 +261,11 @@ document.getElementById("member").addEventListener("change", async function(e) {
   }
 });
 
-document.getElementById("interface").addEventListener("change", async function(e) {
+interfaceSelector.addEventListener("change", async function(e) {
+  console.log(e);
   if (e.target.value) {
     const ifaceName = e.target.value;
-    const memberSelector = document.getElementById("member");
-    const apiSelector = document.getElementById("api");
+
     // reset
     memberSelector.innerHTML = `<option value="">Interface page</option>`;
     document.getElementById("sub").disabled = false;
@@ -270,7 +273,7 @@ document.getElementById("interface").addEventListener("change", async function(e
     document.getElementById("output").textContent = "";
     document.getElementById("generate").disabled = false;
 
-    (apiSelector.querySelector("option[selected]") || {}).selected = false;
+    (groupDataSelector.querySelector("option[selected]") || {}).selected = false;
     const idlData = await getIdl(ifaceName);
     const parsedIdl = getParsedIdl(idlData);
     // bail out if this is not a documentable item
@@ -290,11 +293,16 @@ document.getElementById("interface").addEventListener("change", async function(e
 
     memberSelector.append(attributeOptions, constructorOptions, methodOptions, eventOptions);
 
+    if (params.get("member")) {
+      memberSelector.value = params.get("member");
+      memberSelector.dispatchEvent(new Event("change"));
+    }
+
     const groupName =  Object.keys(groupData[0]).find(api => groupData[0][api].interfaces?.includes(ifaceName));
     if (groupName) {
-      [...apiSelector.querySelectorAll("option")].find(o => o.textContent === groupName).selected = true;
+      [...groupDataSelector.querySelectorAll("option")].find(o => o.textContent === groupName).selected = true;
     } else {
-      apiSelector.querySelector("option").selected = true;
+      groupDataSelector.querySelector("option").selected = true;
     }
   }
 });
@@ -305,30 +313,30 @@ document.getElementById("generate").addEventListener("click", async function(e) 
   e.preventDefault();
   document.getElementById("download").disabled = true;
   try {
-    if (!document.getElementById("member").value) {
+    if (!memberSelector.value) {
       generatedFiles = await generateInterfacePage(
-	document.getElementById("interface").value,
-	document.getElementById("api").value,
+	interfaceSelector.value,
+	groupDataSelector.value,
 	{experimental: document.getElementById("experimental").checked, recursive: document.getElementById("sub").checked}
       );
       document.getElementById("output").textContent = generatedFiles.map(page => fileSep(page.name) + page.input).join("\n");
       document.getElementById("download").disabled = false;
     } else {
-      const [membertype, membername, staticmember] = document.getElementById("member").value.split("|");
+      const [membertype, membername, staticmember] = memberSelector.value.split("|");
       let ret = "";
       if (membertype === "event") {
 	ret = await generateEventInterfacePage(
-	  document.getElementById("interface").value,
+	  interfaceSelector.value,
 	  membername,
-	  document.getElementById("api").value,
+	  groupDataSelector.value,
 	  {experimental: document.getElementById("experimental").checked}
 	)
       } else {
 	ret = await generateSubInterfacePage(
-	  document.getElementById("interface").value,
+	  interfaceSelector.value,
 	  membername,
 	  !!staticmember,
-	  document.getElementById("api").value,
+	  groupDataSelector.value,
 	  {experimental: document.getElementById("experimental").checked}
 	);
       }
@@ -355,7 +363,7 @@ document.getElementById("download").addEventListener("click", async function(e) 
   } else {
     // Zip
     blob = await downloadZip(generatedFiles).blob();
-    filename = document.getElementById("interface").value + ".zip";
+    filename = interfaceSelector.value + ".zip";
   }
   const link = document.createElement("a");
   link.href = URL.createObjectURL(blob);
@@ -363,3 +371,9 @@ document.getElementById("download").addEventListener("click", async function(e) 
   link.click();
   link.remove();
 });
+
+// Set interface selector based on query string
+if (params.get("interface")) {
+  interfaceSelector.value = params.get("interface");
+  interfaceSelector.dispatchEvent(new Event("change"));
+}
