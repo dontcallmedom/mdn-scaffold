@@ -1,7 +1,7 @@
 ---
 title: <% if (constructor) { %><%= iface %>()<% } else {%><%= iface %>.<%= membername %>()<% } %>
 slug: Web/API/<%= iface %>/<%= membername %>
-page-type: web-api-<% if (constructor) {%>constructor<% } else { %>if (static) { %>static<% } else { %>instance<% } %>-method<% } %>
+page-type: web-api-<% if (constructor) {%>constructor<% } else { if (static) { %>static<% } else { %>instance<% } %>-method<% } %>
 <% if (experimental) { %>
 tags:
 - experimental

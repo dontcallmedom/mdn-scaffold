@@ -87,7 +87,7 @@ async function generateInterfacePage(iface, groupdataname, options = {experiment
   ifaceData.staticmethods = getMembers(parsedIdl, [isOperation, isStatic]);
   ifaceData.methods = getMembers(parsedIdl, [isOperation, not(isStatic)]);
 
-  ifaceData.events = (getMembers(parsedIdl, isEventHandler) || []).map(m => m.name.slice(2)).sort();
+  ifaceData.events = getMembers(parsedIdl, isEventHandler)?.map(m => m.name.slice(2)).sort();
 
   if (!mainIdl.inheritance) {
     ifaceData.parent = null;
@@ -109,6 +109,7 @@ async function generateInterfacePage(iface, groupdataname, options = {experiment
 }
 
 const idlType2PageType = {
+  "constructor": "method",
   "operation": "method",
   "attribute": "property"
 };
@@ -170,7 +171,8 @@ async function generateSubInterfacePage(iface, membername, staticMember, groupda
   }
   const idlData = await getIdl(iface);
   const parsedIdl = getParsedIdl(idlData);
-  const matchingMembers = getMembers(parsedIdl, [staticMember? isStatic : not(isStatic), hasName(membername)]);
+  const matchingMembers = memberData.constructor ? getMembers(parsedIdl, isConstructor) : getMembers(parsedIdl, [staticMember? isStatic : not(isStatic), hasName(membername)]);
+  console.log(idlData, parsedIdl, staticMember, membername);
   if (!matchingMembers) {
     throw new Error(`Unknown ${iface}.${membername}`);
   }
@@ -214,7 +216,7 @@ document.getElementById("interface").addEventListener("change", async function(e
     const attributeOptions = optgroup("Properties",
 				      (getMembers(parsedIdl, [isAttribute, (m => m.name)]) || []).map(m => { return { value: `attribute|${m.name}`, label: m.name};}));
     const constructorOptions = optgroup("Constructor",
-				      (getMembers(parsedIdl, isConstructor) || []).map(m => { return { value: `constructor|ifaceName`, label: `${ifaceName}() (constructor)`};}));
+				      (getMembers(parsedIdl, isConstructor) || []).map(m => { return { value: `constructor|constructor`, label: `${ifaceName}() (constructor)`};}));
     const methodOptions = optgroup("Methods",
 				   (getMembers(parsedIdl, [isOperation, (m => m.name)]) || []).map(m => { return { value: `operation|${m.name}${m.special === "static" ? "|static" : ""}`, label: `${m.name}()${m.special === "static" ? " - static" : ""}`};}));
     const eventOptions = optgroup("Events",
