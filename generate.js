@@ -109,19 +109,19 @@ async function generateInterfacePage(iface, groupdataname, options = {experiment
   const tmpl = await fetch("templates/web-api-interface.md").then(r => r.text());
   let ret = [
     {
-      filename: "index.md",
-      content: ejs.render(tmpl, ifaceData)
+      name: "index.md",
+      input: ejs.render(tmpl, ifaceData)
     }
   ];
   if (options.recursive) {
     const path = p => `${p.toLowerCase()}/index.md`;
     async function generateSubPages(entries, staticMember)  {
       return Promise.all((entries || []).map(async p => {
-	let subpage = {filename: path(p.name)};
+	let subpage = {name: path(p.name)};
 	try {
-	  subpage.content = await generateSubInterfacePage(iface, p.name, staticMember, groupdataname, options);
+	  subpage.input = await generateSubInterfacePage(iface, p.name, staticMember, groupdataname, options);
 	} catch (e) {
-	  subpage.content += `Error: ${e}`;
+	  subpage.input += `Error: ${e}`;
 	}
 	return subpage;
       }
@@ -129,18 +129,18 @@ async function generateInterfacePage(iface, groupdataname, options = {experiment
     }
 
     if (ifaceData.constructor) {
-      ret.push({filename: path(iface), content: await generateSubInterfacePage(iface, "constructor", false, groupdataname, options)});
+      ret.push({name: path(iface), input: await generateSubInterfacePage(iface, "constructor", false, groupdataname, options)});
     }
     ret = ret.concat(await generateSubPages(ifaceData.staticproperties, true));
     ret = ret.concat(await generateSubPages(ifaceData.properties, false));
     ret = ret.concat(await generateSubPages(ifaceData.staticmethods, true));
     ret = ret.concat(await generateSubPages(ifaceData.methods, false));
     ret = ret.concat(await Promise.all((ifaceData.events || []).map(async name => {
-      let subpage = {filename: path(name + "_event")};
+      let subpage = {name: path(name + "_event")};
       try {
-	subpage.content = await generateEventInterfacePage(iface, name, groupdataname, options);
+	subpage.input = await generateEventInterfacePage(iface, name, groupdataname, options);
       } catch (e) {
-	subpage.content = `Error: ${e}`;
+	subpage.input = `Error: ${e}`;
       }
       return subpage;
     }
@@ -293,15 +293,20 @@ document.getElementById("interface").addEventListener("change", async function(e
   }
 });
 
+let generatedFiles;
+
 document.getElementById("generate").addEventListener("click", async function(e) {
   e.preventDefault();
+  document.getElementById("download").disabled = true;
   try {
     if (!document.getElementById("member").value) {
-      document.getElementById("output").textContent = (await generateInterfacePage(
+      generatedFiles = await generateInterfacePage(
 	document.getElementById("interface").value,
 	document.getElementById("api").value,
 	{experimental: document.getElementById("experimental").checked, recursive: document.getElementById("sub").checked}
-      )).map(page => fileSep(page.filename) + page.content).join("\n");
+      );
+      document.getElementById("output").textContent = generatedFiles.map(page => fileSep(page.name) + page.input).join("\n");
+      document.getElementById("download").disabled = false;
     } else {
       const [membertype, membername, staticmember] = document.getElementById("member").value.split("|");
       let ret = "";
@@ -311,7 +316,7 @@ document.getElementById("generate").addEventListener("click", async function(e) 
 	  membername,
 	  document.getElementById("api").value,
 	  {experimental: document.getElementById("experimental").checked}
-	);
+	)
       } else {
 	ret = await generateSubInterfacePage(
 	  document.getElementById("interface").value,
@@ -321,10 +326,34 @@ document.getElementById("generate").addEventListener("click", async function(e) 
 	  {experimental: document.getElementById("experimental").checked}
 	);
       }
+      generatedFiles = [{name: "index.md", input: ret}];
+      document.getElementById("download").disabled = false;
       document.getElementById("output").textContent = ret;
     }
   } catch (e) {
     document.getElementById("output").textContent = e.message;
     console.error(e);
   }
+});
+
+document.getElementById("download").addEventListener("click", async function(e) {
+  e.preventDefault();
+  if (!generatedFiles?.length) {
+    e.target.disabled = true;
+    return;
+  }
+  let blob, filename;
+  if (generatedFiles.length === 1) {
+    filename = generatedFiles[0].name;
+    blob = new Blob([generatedFiles[0].input], { type: "text/plain"});
+  } else {
+    // Zip
+    blob = await downloadZip(generatedFiles).blob();
+    filename = document.getElementById("interface").value + ".zip";
+  }
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = filename;
+  link.click();
+  link.remove();
 });
