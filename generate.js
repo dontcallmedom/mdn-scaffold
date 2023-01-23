@@ -61,7 +61,6 @@ function formatIdlType(idlType) {
 
 function getMembers(idls, predicates = [x => true]) {
   predicates = Array.isArray(predicates) ? predicates : [predicates];
-
   const members = idls.filter(i => i.members).map(i => i.members.filter(m => predicates.every(f => f(m)))).flat();
   // TODO: remove dups due to overloaded operations?
   if (members.length === 0) return null;
@@ -82,7 +81,7 @@ async function generateInterfacePage(iface, groupdataname, options = {experiment
 
   const mainIdl = parsedIdl[0];
   ifaceData.securecontext = mainIdl.extAttrs.find(hasSecureContextExtAttr);
-  ifaceData.constructor = mainIdl.members.find(isConstructor);
+  ifaceData._constructor = mainIdl.members.find(isConstructor);
 
   ifaceData.staticproperties = getMembers(parsedIdl, [isAttribute, isStatic]);
   ifaceData.properties = getMembers(parsedIdl, [isAttribute, not(isStatic), not(isEventHandler)]);
@@ -128,7 +127,7 @@ async function generateInterfacePage(iface, groupdataname, options = {experiment
 					    ));
     }
 
-    if (ifaceData.constructor) {
+    if (ifaceData._constructor) {
       ret.push({name: path(iface), input: await generateSubInterfacePage(iface, "constructor", false, groupdataname, options)});
     }
     ret = ret.concat(await generateSubPages(ifaceData.staticproperties, true));
@@ -204,15 +203,16 @@ async function generateSubInterfacePage(iface, membername, staticMember, groupda
     experimental: options.experimental,
     groupdataname,
     static: staticMember,
+    _constructor: false,
     returnvalue: null
   };
   if (membername === "constructor") {
-    memberData.constructor = true;
+    memberData._constructor = true;
     memberData.membername = iface;
   }
   const idlData = await getIdl(iface);
   const parsedIdl = getParsedIdl(idlData);
-  const matchingMembers = memberData.constructor ? getMembers(parsedIdl, isConstructor) : getMembers(parsedIdl, [staticMember? isStatic : not(isStatic), hasName(membername)]);
+  const matchingMembers = memberData._constructor ? getMembers(parsedIdl, isConstructor) : getMembers(parsedIdl, [staticMember? isStatic : not(isStatic), hasName(membername)]);
   if (!matchingMembers) {
     throw new Error(`Unknown ${iface}.${membername}`);
   }
@@ -271,6 +271,7 @@ document.getElementById("interface").addEventListener("change", async function(e
     // bail out if this is not a documentable item
     if (parsedIdl[0].type !== "interface") {
       document.getElementById("generate").disabled = true;
+      document.getElementById("download").disabled = true;
       document.getElementById("output").textContent = "Not an interface";
     }
     const attributeOptions = optgroup("Properties",

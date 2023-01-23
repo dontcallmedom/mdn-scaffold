@@ -1,7 +1,7 @@
 ---
-title: <% if (constructor) { %><%= iface %>()<% } else {%><%= iface %>.<%= membername %>()<% } %>
+title: <% if (_constructor) { %><%= iface %>()<% } else {%><%= iface %>.<%= membername %>()<% } %>
 slug: Web/API/<%= iface %>/<%= membername %>
-page-type: web-api-<% if (constructor) {%>constructor<% } else { if (static) { %>static<% } else { %>instance<% } %>-method<% } %>
+page-type: web-api-<% if (_constructor) {%>constructor<% } else { if (static) { %>static<% } else { %>instance<% } %>-method<% } %>
 <% if (experimental) { %>
 tags:
 - experimental
@@ -32,7 +32,7 @@ TOWRITE: Summary paragraph
 <% } else { %>None<% }%>
 
 ### Return value
-<% if (constructor) { %>
+<% if (_constructor) { %>
 An instance of the {{domxref("<%= iface %>")}} object.
 <% } else if (returnvalue) { %>
 {{domxref("<%= returnvalue %>")}}
