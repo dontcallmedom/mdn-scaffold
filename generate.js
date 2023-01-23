@@ -168,7 +168,13 @@ async function generateInterfacePage(iface, groupdataname, options = {experiment
   ifaceData._constructor = mainIdl.members.find(isConstructor);
 
   ifaceData.staticproperties = await Promise.all(getMembers(parsedIdl, [isAttribute, isStatic])?.sort(byName)?.map(async p => Object.assign(p, { idltype: await formatIdlType(p.idlType)})) || []);
-  ifaceData.properties = await Promise.all(getMembers(parsedIdl, [isAttribute, not(isStatic), not(isEventHandler)])?.sort(byName).map(async p => Object.assign(p, { idltype: await formatIdlType(p.idlType)})));
+  if (!ifaceData.staticproperties.length) {
+    ifaceData.staticproperties = null;
+  }
+  ifaceData.properties = await Promise.all(getMembers(parsedIdl, [isAttribute, not(isStatic), not(isEventHandler)])?.sort(byName).map(async p => Object.assign(p, { idltype: await formatIdlType(p.idlType)})) || []);
+  if (!ifaceData.properties.length) {
+    ifaceData.properties = null;
+  }
   ifaceData.staticmethods = getMembers(parsedIdl, [isOperation, isStatic])?.sort(byName);
   ifaceData.methods = getMembers(parsedIdl, [isOperation, not(isStatic)])?.sort(byName);
 
