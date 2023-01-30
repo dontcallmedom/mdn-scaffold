@@ -12,7 +12,6 @@ const [groupData, interfaces, events] = await Promise.all(
 
 const params = new URLSearchParams(window.location.search);
 
-
 const groupDataSelector = document.getElementById("api");
 Object.keys(groupData[0]).forEach(name => {
   const option = document.createElement("option");
@@ -21,9 +20,11 @@ Object.keys(groupData[0]).forEach(name => {
 });
 const interfaceSelector = document.getElementById("interface");
 Object.keys(interfaces).forEach(name => {
-  const option = document.createElement("option");
-  option.textContent = name;
-  interfaceSelector.append(option);
+  if (interfaces[name].type === "interface") {
+    const option = document.createElement("option");
+    option.textContent = name;
+    interfaceSelector.append(option);
+  }
 });
 const memberSelector = document.getElementById("member");
 
@@ -121,7 +122,6 @@ async function formatIdlType(idltype, indent = 0) {
     return isIdlPrimitive(idltype.idlType);
   } else {
     try {
-      // TODO: load idlType and check type if it's an interface
       const idlData = await getIdl(idltype.idlType);
       if (idlData.type === "interface") {
 	return `{{DOMxRef("${idltype.idlType}")}}`;
