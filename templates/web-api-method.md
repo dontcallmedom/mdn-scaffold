@@ -26,6 +26,9 @@ TOWRITE: Summary paragraph
 
 ### Parameters
 <% if (parameters) { %>
+<% if (overloaded) { %>
+TOCHECK: this method exists in several overloaded versions; adjust the parameter description accordingly.
+<% } %>
 <% for (let param of parameters) { %>
 - `<%= param.name %>` <% if (param.optional) { %>{{optional_inline}}<% } %>
   - : <%- param.type %><% } %>

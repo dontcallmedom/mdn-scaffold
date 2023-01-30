@@ -56,6 +56,7 @@ const isAttribute = m => m.type === "attribute";
 const isConstructor = m => m.type === "constructor";
 const isOperation = m => m.type === "operation";
 const hasName = name => m => m.name === name;
+const isUniqueByName =  (m, i, arr) => arr.findIndex(mm => m.type === "constructor" ? mm.type === m.type : mm.name === m.name) === i;
 const hasSecureContextExtAttr = ea => ea.name === "SecureContext";
 const byName = (a, b) => a.name.localeCompare(b.name, "en-US");
 
@@ -141,14 +142,15 @@ ${indentStr}   - \`"${parsedIdl[0].values.map(v => v.value).join(`\`"\n${indentS
   }
 }
 
-function getMembers(idls, predicates = [x => true]) {
+function getMembers(idls, predicates = [x => true], keepOverloads = false) {
   predicates = Array.isArray(predicates) ? predicates : [predicates];
+  // unless specified, remove dups coming from overloaded operations
+  if (!keepOverloads) {
+    predicates.push(isUniqueByName);
+  }
   const members = idls.filter(i => i.members).map(i => i.members.filter((m, i, arr) => predicates.every(
-    f => f(m) &&
-      // remove dups due to overloaded operations
-    arr.findIndex(mm => m.type === "constructor" ? mm.type === m.type : mm.name === m.name) === i)
-								       ))
-	.flat();
+    f => f(m, i, arr))
+								       )).flat();
   if (members.length === 0) return null;
   return members;
 }
@@ -296,6 +298,7 @@ async function generateSubInterfacePage(iface, membername, staticMember, groupda
     groupdataname,
     static: staticMember,
     _constructor: false,
+    overloaded: false,
     returnvalue: null
   };
   if (membername === "constructor") {
@@ -304,7 +307,7 @@ async function generateSubInterfacePage(iface, membername, staticMember, groupda
   }
   const idlData = await getIdl(iface);
   const parsedIdl = getParsedIdl(idlData);
-  const matchingMembers = memberData._constructor ? getMembers(parsedIdl, isConstructor) : getMembers(parsedIdl, [staticMember? isStatic : not(isStatic), hasName(membername)]);
+  const matchingMembers = memberData._constructor ? getMembers(parsedIdl, isConstructor, true) : getMembers(parsedIdl, [staticMember? isStatic : not(isStatic), hasName(membername)], true);
   if (!matchingMembers) {
     throw new Error(`Unknown ${iface}.${membername}`);
   }
@@ -312,7 +315,10 @@ async function generateSubInterfacePage(iface, membername, staticMember, groupda
   memberData.securecontext = parsedIdl[0].extAttrs.find(hasSecureContextExtAttr) || member.extAttrs.find(hasSecureContextExtAttr);
 
   if (isConstructor(member) || isOperation(member)) {
-    memberData.parameters = await Promise.all(member.arguments.map(async a => { return {name: a.name, type: await formatIdlType(a.idlType), optional: a.optional} ; }));
+    if (matchingMembers.length > 0) {
+      memberData.overloaded = true;
+    }
+    memberData.parameters = await Promise.all(matchingMembers.map(m => m.arguments).flat().map(async a => { return {name: a.name, type: await formatIdlType(a.idlType), optional: a.optional} ; }));
     memberData.parameters = memberData.parameters.length ? memberData.parameters : null;
   }
   if (isOperation(member)) {
