@@ -13,6 +13,7 @@ const [groupData, interfaces, events] = await Promise.all(
 const params = new URLSearchParams(window.location.search);
 
 const groupDataSelector = document.getElementById("api");
+const groupDataInput = document.getElementById("apiother");
 Object.keys(groupData[0]).forEach(name => {
   const option = document.createElement("option");
   option.textContent = name;
@@ -29,6 +30,14 @@ Object.keys(interfaces).forEach(name => {
 const memberSelector = document.getElementById("member");
 
 const _idlCache = {};
+
+function getApiGroup() {
+  if (groupDataSelector.value) {
+    return groupDataSelector.value;
+  } else {
+    return groupDataInput.value;
+  }
+}
 
 async function getIdl(name) {
   if (!_idlCache[name]) {
@@ -370,6 +379,7 @@ interfaceSelector.addEventListener("change", async function(e) {
     document.getElementById("generate").disabled = false;
 
     (groupDataSelector.querySelector("option[selected]") || {}).selected = false;
+    groupDataInput.value = "";
     const idlData = await getIdl(ifaceName);
     const parsedIdl = getParsedIdl(idlData);
     // bail out if this is not a documentable item
@@ -413,7 +423,7 @@ document.getElementById("generate").addEventListener("click", async function(e) 
     if (!memberSelector.value) {
       generatedFiles = await generateInterfacePage(
 	interfaceSelector.value,
-	groupDataSelector.value,
+	getApiGroup(),
 	{experimental: document.getElementById("experimental").checked, recursive: document.getElementById("sub").checked}
       );
       document.getElementById("output").textContent = generatedFiles.map(page => fileSep(page.name) + page.input).join("\n");
@@ -425,7 +435,7 @@ document.getElementById("generate").addEventListener("click", async function(e) 
 	ret = await generateEventInterfacePage(
 	  interfaceSelector.value,
 	  membername,
-	  groupDataSelector.value,
+	  getApiGroup(),
 	  {experimental: document.getElementById("experimental").checked}
 	)
       } else {
@@ -433,7 +443,7 @@ document.getElementById("generate").addEventListener("click", async function(e) 
 	  interfaceSelector.value,
 	  membername,
 	  !!staticmember,
-	  groupDataSelector.value,
+	  getApiGroup(),
 	  {experimental: document.getElementById("experimental").checked}
 	);
       }
