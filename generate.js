@@ -99,6 +99,7 @@ const isIdlPrimitive = (type) => {
   case "DOMString":
   case "ByteString":
   case "USVString":
+  case "CSSOMString":
     return "string";
   default:
     return false;
