@@ -16,7 +16,7 @@ tags:
 } %><% if (securecontext) { 
 %>{{SecureContext_Header}}<% } %>
 
-The <% if (static) {%>static <% }%>**<%= membername %>** property of the {{DOMxRef("iface")}} interface TOWRITE: the end of the summary paragraph
+The <% if (static) {%>static <% }%>**`<%= membername %>`** property of the {{DOMxRef("iface")}} interface TOWRITE: the end of the summary paragraph
 
 ## Value
 
