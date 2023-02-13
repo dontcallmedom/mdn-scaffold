@@ -16,7 +16,7 @@ tags:
 } %><% if (securecontext) { 
 %>{{SecureContext_Header}}<% } %>
 
-The <% if (static) {%>static <% }%>**`<%= membername %>`** property of the {{DOMxRef("iface")}} interface TOWRITE: the end of the summary paragraph
+The **`<%= membername %>`** <% if (static) {%>static <% }%>property of the {{DOMxRef("iface")}} interface TOWRITE: the end of the summary paragraph
 
 ## Value
 
@@ -33,4 +33,3 @@ TOWRITE: Write a short example demonstrating the use of this property. If not pe
 ## Browser compatibility
 
 {{Compat}}
-
