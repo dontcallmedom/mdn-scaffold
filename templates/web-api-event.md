@@ -3,7 +3,7 @@ title: "<%= iface %>: <%= eventname %> event"
 slug: Web/API/<%= iface %>/<%= eventname %>_event
 page-type: web-api-event
 <% if (experimental) { %>
-tags:
+status:
 - experimental
 <% } %>
 browser-compat: api.<%= iface %>.<%= eventname %>_event

@@ -2,7 +2,7 @@
 title: <% if (_constructor) { %><%= iface %>()<% } else {%><%= iface %>.<%= membername %>()<% } %>
 slug: Web/API/<%= iface %>/<%= membername %>
 page-type: web-api-<% if (_constructor) {%>constructor<% } else { if (static) { %>static<% } else { %>instance<% } %>-method<% } %>
-<% if (experimental) { %>tags:
+<% if (experimental) { %>status:
 - experimental
 <% } %>browser-compat: api.<%= iface %>.<%= membername %> <%# how to deal with static methods having same name as instance method? %>
 ---
