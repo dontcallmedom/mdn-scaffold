@@ -3,7 +3,7 @@ title: <%= iface %>
 slug: Web/API/<%= iface %>
 page-type: web-api-interface
 <% if (experimental) { %>
-tags:
+status:
 - experimental
 <% } %>
 browser-compat: api.<%= iface %>
